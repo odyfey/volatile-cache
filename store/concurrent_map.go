@@ -45,12 +45,18 @@ func (c *ConcurrentTTLMap) Set(key, value string, exp time.Duration) {
 	c.Unlock()
 }
 
+func (c *ConcurrentTTLMap) SetPreparedItem(key string, item Item) {
+	c.Lock()
+	c.items[key] = item
+	c.Unlock()
+}
+
 func (c *ConcurrentTTLMap) Get(key string) (string, bool) {
 	var result string
 
 	c.RLock()
 	item, ok := c.items[key]
-	c.Unlock()
+	c.RUnlock()
 
 	if ok {
 		if time.Now().UnixNano() <= item.Expiration {
@@ -98,6 +104,22 @@ func (c *ConcurrentTTLMap) Load(r io.Reader) error {
 	return nil
 }
 
+func (c *ConcurrentTTLMap) Items() map[string]Item {
+	result := make(map[string]Item, len(c.items))
+	now := time.Now().UnixNano()
+	for key, value := range c.items {
+		if now > value.Expiration {
+			continue
+		}
+		result[key] = value
+	}
+	return result
+}
+
+func (c *ConcurrentTTLMap) len() int {
+	return len(c.items)
+}
+
 func (c *ConcurrentTTLMap) deleteExpired() {
 	now := time.Now().UnixNano()
 
@@ -123,6 +145,6 @@ func (c *ConcurrentTTLMap) runWatcher(interval time.Duration) {
 	}
 }
 
-func (c *ConcurrentTTLMap) close() {
+func (c *ConcurrentTTLMap) pauseWatcher() {
 	c.stopWatcher <- true
 }
