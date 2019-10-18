@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"log"
 	"net"
 
@@ -25,8 +26,14 @@ func NewServer(host string, port int) *Server {
 	}
 }
 
-func (s *Server) Start(host string, port int) error {
-	address := fmt.Sprintf("%s:%d", host, port)
+func (s *Server) FillServerCache(r io.Reader) {
+	if err := s.cache.Load(r); err != nil {
+		log.Println(errors.Wrap(err, "can't load cache data"))
+	}
+}
+
+func (s *Server) Start() error {
+	address := fmt.Sprintf("%s:%d", s.host, s.port)
 	l, err := net.Listen("tcp", address)
 	if err != nil {
 		return errors.Wrapf(err, "can't start tcp listener on %s", address)
@@ -40,6 +47,12 @@ func (s *Server) Start(host string, port int) error {
 			log.Println(errors.Wrap(err, "can't accept message"))
 		}
 		go s.handleRequest(conn)
+	}
+}
+
+func (s *Server) Stop(w io.Writer) {
+	if err := s.cache.Save(w); err != nil {
+		log.Println(errors.Wrap(err, "can't save cache data"))
 	}
 }
 
