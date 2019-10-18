@@ -1,4 +1,4 @@
-module volatile-cache
+module github.com/zullin/volatile-cache
 
 go 1.13
 
