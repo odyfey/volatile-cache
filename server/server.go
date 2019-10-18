@@ -9,6 +9,7 @@ import (
 	"net"
 
 	"github.com/pkg/errors"
+	"github.com/zullin/volatile-cache/config"
 	"github.com/zullin/volatile-cache/store"
 )
 
@@ -20,11 +21,12 @@ type Server struct {
 }
 
 func NewServer(host string, port int) *Server {
+	cfg := config.GetInstance()
 	return &Server{
 		host:       host,
 		port:       port,
 		stopServer: make(chan bool),
-		cache:      store.NewBucketsMap(256),
+		cache:      store.NewBucketsMap(cfg.BucketsNum),
 	}
 }
 

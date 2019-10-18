@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/zullin/volatile-cache/config"
 )
 
 type BucketsMap struct {
@@ -15,12 +16,13 @@ type BucketsMap struct {
 }
 
 func NewBucketsMap(bucketsNum int) *BucketsMap {
+	cfg := config.GetInstance()
 	bm := &BucketsMap{
 		buckets:    make([]*concurrentTTLMap, bucketsNum),
 		bucketsNum: bucketsNum,
 	}
 	for idx := range bm.buckets {
-		bm.buckets[idx] = newConcurrentTTLMap(60 * time.Second) // todo: env config
+		bm.buckets[idx] = newConcurrentTTLMap(time.Duration(cfg.ExpirationTime) * time.Second)
 	}
 	return bm
 }
