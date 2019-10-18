@@ -76,6 +76,7 @@ func (s *Server) Stop(w io.Writer) {
 }
 
 func (s *Server) handleRequest(conn net.Conn) {
+	defer conn.Close()
 	buf := make([]byte, 1024)
 	_, err := conn.Read(buf)
 	if err != nil {
@@ -95,6 +96,7 @@ func (s *Server) handleRequest(conn net.Conn) {
 	if _, err = conn.Write([]byte(res)); err != nil {
 		log.Println(errors.Wrap(err, "can't sent response"))
 	}
+	log.Printf("action %s success executed", msg.Action)
 }
 
 func (s *Server) processAction(msg Message) (res string, err error) {
