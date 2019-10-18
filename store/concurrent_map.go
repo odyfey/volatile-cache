@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type ConcurrentTTLMap struct {
+type concurrentTTLMap struct {
 	sync.RWMutex
 	defaultExpiration time.Duration
 	items             map[string]Item
@@ -21,18 +21,17 @@ type Item struct {
 	Expiration int64
 }
 
-func NewConcurrentMap(exp time.Duration) *ConcurrentTTLMap {
-	c := &ConcurrentTTLMap{
+func newConcurrentTTLMap(exp time.Duration) *concurrentTTLMap {
+	c := &concurrentTTLMap{
 		defaultExpiration: exp,
 		items:             make(map[string]Item),
 		stopWatcher:       make(chan bool),
 	}
-
 	go c.runWatcher(50 * time.Millisecond) // todo: env config
 	return c
 }
 
-func (c *ConcurrentTTLMap) Set(key, value string, exp time.Duration) {
+func (c *concurrentTTLMap) Set(key, value string, exp time.Duration) {
 	if exp == 0 {
 		exp = c.defaultExpiration
 	}
@@ -45,28 +44,30 @@ func (c *ConcurrentTTLMap) Set(key, value string, exp time.Duration) {
 	c.Unlock()
 }
 
-func (c *ConcurrentTTLMap) SetPreparedItem(key string, item Item) {
+func (c *concurrentTTLMap) setPreparedItem(key string, item Item) {
 	c.Lock()
 	c.items[key] = item
 	c.Unlock()
 }
 
-func (c *ConcurrentTTLMap) Get(key string) (string, bool) {
+func (c *concurrentTTLMap) Get(key string) (string, bool) {
 	var result string
 
 	c.RLock()
 	item, ok := c.items[key]
-	c.RUnlock()
-
-	if ok {
-		if time.Now().UnixNano() <= item.Expiration {
-			result = item.Value
-		}
+	if !ok {
+		c.RUnlock()
+		return result, ok
 	}
+
+	if time.Now().UnixNano() <= item.Expiration {
+		result = item.Value
+	}
+	c.RUnlock()
 	return result, ok
 }
 
-func (c *ConcurrentTTLMap) Delete(key string) {
+func (c *concurrentTTLMap) Delete(key string) {
 	c.Lock()
 	if _, ok := c.items[key]; ok {
 		delete(c.items, key)
@@ -74,7 +75,7 @@ func (c *ConcurrentTTLMap) Delete(key string) {
 	c.Unlock()
 }
 
-func (c *ConcurrentTTLMap) Save(w io.Writer) (err error) {
+func (c *concurrentTTLMap) Save(w io.Writer) (err error) {
 	enc := gob.NewEncoder(w)
 
 	c.RLock()
@@ -85,7 +86,7 @@ func (c *ConcurrentTTLMap) Save(w io.Writer) (err error) {
 	return
 }
 
-func (c *ConcurrentTTLMap) Load(r io.Reader) error {
+func (c *concurrentTTLMap) Load(r io.Reader) error {
 	dec := gob.NewDecoder(r)
 	items := make(map[string]Item)
 	if err := dec.Decode(&items); err != nil {
@@ -98,13 +99,14 @@ func (c *ConcurrentTTLMap) Load(r io.Reader) error {
 		if !ok {
 			c.items[key] = value
 		}
-
 	}
 	c.Unlock()
 	return nil
 }
 
-func (c *ConcurrentTTLMap) Items() map[string]Item {
+func (c *concurrentTTLMap) itemsCopy() map[string]Item {
+	c.RLock()
+	defer c.RUnlock()
 	result := make(map[string]Item, len(c.items))
 	now := time.Now().UnixNano()
 	for key, value := range c.items {
@@ -116,11 +118,11 @@ func (c *ConcurrentTTLMap) Items() map[string]Item {
 	return result
 }
 
-func (c *ConcurrentTTLMap) len() int {
+func (c *concurrentTTLMap) len() int {
 	return len(c.items)
 }
 
-func (c *ConcurrentTTLMap) deleteExpired() {
+func (c *concurrentTTLMap) deleteExpired() {
 	now := time.Now().UnixNano()
 
 	c.Lock()
@@ -132,7 +134,7 @@ func (c *ConcurrentTTLMap) deleteExpired() {
 	c.Unlock()
 }
 
-func (c *ConcurrentTTLMap) runWatcher(interval time.Duration) {
+func (c *concurrentTTLMap) runWatcher(interval time.Duration) {
 	tick := time.NewTicker(interval)
 	for {
 		select {
@@ -145,6 +147,6 @@ func (c *ConcurrentTTLMap) runWatcher(interval time.Duration) {
 	}
 }
 
-func (c *ConcurrentTTLMap) pauseWatcher() {
+func (c *concurrentTTLMap) pauseWatcher() {
 	c.stopWatcher <- true
 }

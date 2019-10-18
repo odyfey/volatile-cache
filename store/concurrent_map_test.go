@@ -31,7 +31,7 @@ var data = []struct {
 }
 
 func TestSet(t *testing.T) {
-	cm := NewConcurrentMap(3 * time.Second)
+	cm := newConcurrentTTLMap(3 * time.Second)
 	for _, item := range data {
 		cm.Set(item.key, item.value, item.exp)
 	}
@@ -72,7 +72,7 @@ func TestDeleteExpired(t *testing.T) {
 		},
 	}
 
-	cm := NewConcurrentMap(100 * time.Millisecond)
+	cm := newConcurrentTTLMap(100 * time.Millisecond)
 	for _, item := range data {
 		cm.Set(item.key, item.value, item.exp)
 	}
@@ -111,14 +111,14 @@ func TestLoadToAnother(t *testing.T) {
 	err := cm.Save(&buf)
 	assert.Nil(t, err)
 
-	cm2 := NewConcurrentMap(3 * time.Second)
+	cm2 := newConcurrentTTLMap(3 * time.Second)
 	err = cm2.Load(&buf)
 	assert.Nil(t, err)
 	assert.Equal(t, len(data), len(cm2.items))
 }
 
-func prepareMap() *ConcurrentTTLMap {
-	cm := NewConcurrentMap(3 * time.Second)
+func prepareMap() *concurrentTTLMap {
+	cm := newConcurrentTTLMap(3 * time.Second)
 	for _, item := range data {
 		cm.Set(item.key, item.value, item.exp)
 	}

@@ -9,24 +9,19 @@ import (
 )
 
 type BucketsMap struct {
-	buckets    []*ConcurrentTTLMap
+	buckets    []*concurrentTTLMap
 	bucketsNum int
 }
 
 func NewBucketsMap(bucketsNum int) *BucketsMap {
 	bm := &BucketsMap{
-		buckets:    make([]*ConcurrentTTLMap, bucketsNum),
+		buckets:    make([]*concurrentTTLMap, bucketsNum),
 		bucketsNum: bucketsNum,
 	}
 	for idx := range bm.buckets {
-		bm.buckets[idx] = NewConcurrentMap(60 * time.Second) // todo: env config
+		bm.buckets[idx] = newConcurrentTTLMap(60 * time.Second) // todo: env config
 	}
 	return bm
-}
-
-func (bm *BucketsMap) calculateBucketIndex(key string) uint32 {
-	hash := crc32.ChecksumIEEE([]byte(key))
-	return hash % uint32(bm.bucketsNum)
 }
 
 func (bm *BucketsMap) Set(key, value string, exp time.Duration) {
@@ -58,16 +53,21 @@ func (bm *BucketsMap) Save(w io.Writer) error {
 
 // load all items in one map, then insert them into different buckets
 func (bm *BucketsMap) Load(r io.Reader) error {
-	c := NewConcurrentMap(60 * time.Second)
+	c := newConcurrentTTLMap(60 * time.Second)
 	if err := c.Load(r); err != nil {
 		return errors.Wrap(err, "error while loading buckets")
 	}
 
-	for key, item := range c.Items() {
+	for key, item := range c.itemsCopy() {
 		idx := bm.calculateBucketIndex(key)
-		bm.buckets[idx].SetPreparedItem(key, item)
+		bm.buckets[idx].setPreparedItem(key, item)
 	}
 	return nil
+}
+
+func (bm *BucketsMap) calculateBucketIndex(key string) uint32 {
+	hash := crc32.ChecksumIEEE([]byte(key))
+	return hash % uint32(bm.bucketsNum)
 }
 
 func (bm *BucketsMap) pauseBucketsWatchers() {
