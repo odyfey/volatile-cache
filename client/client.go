@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/gob"
-	"io"
 	"log"
 	"net"
 	"time"
@@ -17,7 +17,6 @@ func main() {
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "can't conntect to server"))
 	}
-	defer conn.Close()
 
 	buf := new(bytes.Buffer)
 	enc := gob.NewEncoder(buf)
@@ -29,12 +28,19 @@ func main() {
 		Lifetime: 20 * time.Second,
 	}
 	_ = enc.Encode(&msg)
-	if _, err := buf.WriteTo(conn); err != nil {
+	if err := write(conn, buf.Bytes()); err != nil {
 		log.Println(errors.Wrapf(err, "can't sent message: %+v", msg))
 	}
-	// buf.Reset()
+	buf.Reset()
+	conn.Close()
 
+	conn, err = net.Dial("tcp", "localhost:20153")
+	defer conn.Close()
+	if err != nil {
+		log.Fatal(errors.Wrap(err, "can't conntect to server"))
+	}
 	time.Sleep(2 * time.Second)
+
 	buf2 := new(bytes.Buffer)
 	enc2 := gob.NewEncoder(buf2)
 	msg2 := server.Message{
@@ -42,17 +48,16 @@ func main() {
 		Key:    "test",
 	}
 	_ = enc2.Encode(&msg2)
-	if _, err := buf2.WriteTo(conn); err != nil {
+	if err := write(conn, buf2.Bytes()); err != nil {
 		log.Println(errors.Wrapf(err, "can't sent message: %+v", msg2))
 	}
-	// buf2.Reset()
+}
 
-	time.Sleep(2 * time.Second)
-	dbuf := new(bytes.Buffer)
-	io.Copy(dbuf, conn)
-
-	var resp server.Message
-	dec := gob.NewDecoder(dbuf)
-	_ = dec.Decode(&resp)
-	log.Printf("response: %+v", resp)
+func write(conn net.Conn, content []byte) error {
+	writer := bufio.NewWriter(conn)
+	_, err := writer.Write(content)
+	if err == nil {
+		err = writer.Flush()
+	}
+	return err
 }
