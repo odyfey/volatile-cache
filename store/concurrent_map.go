@@ -75,11 +75,15 @@ func (c *concurrentTTLMap) Delete(key string) {
 	c.Unlock()
 }
 
-func (c *concurrentTTLMap) Save(w io.Writer) (err error) {
+func (c *concurrentTTLMap) Save(w io.Writer) error {
 	enc := gob.NewEncoder(w)
+	err := c.saveToStream(enc)
+	return err
+}
 
+func (c *concurrentTTLMap) saveToStream(enc *gob.Encoder) (err error) {
 	c.RLock()
-	if err := enc.Encode(&c.items); err != nil {
+	if err = enc.Encode(&c.items); err != nil {
 		err = errors.Wrap(err, "can't encode items")
 	}
 	c.RUnlock()

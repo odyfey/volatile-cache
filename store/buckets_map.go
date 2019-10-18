@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/gob"
 	"hash/crc32"
 	"io"
 	"time"
@@ -40,10 +41,10 @@ func (bm *BucketsMap) Delete(key string) {
 }
 
 func (bm *BucketsMap) Save(w io.Writer) error {
-	// todo: bug, сначала собрать все item, потом делать Save
+	enc := gob.NewEncoder(w)
 	for idx := range bm.buckets {
 		if bm.buckets[idx].len() > 0 {
-			if err := bm.buckets[idx].Save(w); err != nil {
+			if err := bm.buckets[idx].saveToStream(enc); err != nil {
 				return errors.Wrapf(err, "error while saving bucket, index: %d", idx)
 			}
 		}
@@ -51,16 +52,20 @@ func (bm *BucketsMap) Save(w io.Writer) error {
 	return nil
 }
 
-// load all items in one map, then insert them into different buckets
 func (bm *BucketsMap) Load(r io.Reader) error {
-	c := newConcurrentTTLMap(60 * time.Second)
-	if err := c.Load(r); err != nil {
-		return errors.Wrap(err, "error while loading buckets")
-	}
-
-	for key, item := range c.itemsCopy() {
-		idx := bm.calculateBucketIndex(key)
-		bm.buckets[idx].setPreparedItem(key, item)
+	dec := gob.NewDecoder(r)
+	for {
+		res := map[string]Item{}
+		err := dec.Decode(&res)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return errors.Wrapf(err, "error while loading buckets")
+		}
+		for key, item := range res {
+			idx := bm.calculateBucketIndex(key)
+			bm.buckets[idx].setPreparedItem(key, item)
+		}
 	}
 	return nil
 }

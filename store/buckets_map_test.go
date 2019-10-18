@@ -7,14 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBucketSet(t *testing.T) {
-	bm := NewBucketsMap(256)
-	for _, item := range data {
-		bm.Set(item.key, item.value, item.exp)
-	}
-
-}
-
 func TestBucketSave(t *testing.T) {
 	bm := NewBucketsMap(16)
 	for _, item := range data {
