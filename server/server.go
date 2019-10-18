@@ -13,16 +13,18 @@ import (
 )
 
 type Server struct {
-	host  string
-	port  int
-	cache store.Store
+	host       string
+	port       int
+	stopServer chan bool
+	cache      store.Store
 }
 
 func NewServer(host string, port int) *Server {
 	return &Server{
-		host:  host,
-		port:  port,
-		cache: store.NewBucketsMap(256),
+		host:       host,
+		port:       port,
+		stopServer: make(chan bool),
+		cache:      store.NewBucketsMap(256),
 	}
 }
 
@@ -41,16 +43,33 @@ func (s *Server) Start() error {
 	defer l.Close()
 	log.Printf("Listening on: %s", address)
 
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			log.Println(errors.Wrap(err, "can't accept message"))
+	newConns := make(chan net.Conn)
+	go func(l net.Listener) {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				log.Println(errors.Wrap(err, "can't accept message"))
+				newConns <- nil
+				return
+			}
+			newConns <- conn
 		}
-		go s.handleRequest(conn)
+	}(l)
+
+	for {
+		select {
+		case conn := <-newConns:
+			if conn != nil {
+				s.handleRequest(conn)
+			}
+		case <-s.stopServer:
+			return nil
+		}
 	}
 }
 
 func (s *Server) Stop(w io.Writer) {
+	s.stopServer <- true
 	if err := s.cache.Save(w); err != nil {
 		log.Println(errors.Wrap(err, "can't save cache data"))
 	}

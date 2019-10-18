@@ -15,11 +15,14 @@ func main() {
 	cfg := config.GetInstance()
 	srv := server.NewServer(cfg.Host, cfg.Port)
 
-	r, err := os.Open(cfg.StoreFileName)
-	if err != nil {
-		log.Print(errors.Wrapf(err, "can't open file: %s", cfg.StoreFileName))
+	_, err := os.Stat(cfg.StoreFileName)
+	if os.IsExist(err) {
+		r, err := os.Open(cfg.StoreFileName)
+		if err != nil {
+			log.Print(errors.Wrapf(err, "can't open file: %s", cfg.StoreFileName))
+		}
+		srv.FillServerCache(r)
 	}
-	srv.FillServerCache(r)
 
 	idleConnsClosed := make(chan struct{})
 	go func() {
@@ -27,7 +30,7 @@ func main() {
 		signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
 		<-sigint
 
-		w, err := os.Open(cfg.StoreFileName)
+		w, err := os.Create(cfg.StoreFileName)
 		if err == nil {
 			srv.Stop(w)
 		} else {
@@ -35,6 +38,6 @@ func main() {
 		}
 		close(idleConnsClosed)
 	}()
-	srv.Start()
+	log.Fatal(srv.Start())
 	<-idleConnsClosed
 }
